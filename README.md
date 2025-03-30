@@ -13,6 +13,11 @@ A backend service for a medical assistance application providing AI-powered chat
 ✅ **Implemented**
 - Text-based medical Q&A with OpenAI GPT-3.5
 - Voice message transcription and AI response generation
+- Integrated FAQ section for common medical questions
+- PDF export of chat history
+- Rate limiting for API protection
+- Conversation persistence across sessions
+- Character counter for input messages (cost optimization)
 - Basic appointment scheduling system
 - Conversation history management
 - API endpoints for:
@@ -20,13 +25,6 @@ A backend service for a medical assistance application providing AI-powered chat
   - Voice interactions (`/voice-chat`)
   - Appointment management (`/appointments`)
 
-🚧 **Upcoming Features**
-- User authentication system
-- Real doctor calendar integration
-- Medical symptom validation layer
-- Emergency contact integration
-- Multi-language support
-- HIPAA compliance measures
 
 ## Installation
 
@@ -60,7 +58,8 @@ POST /chat/
 Content-Type: application/json
 
 {
-  "message": "What are the symptoms of diabetes?"
+  "message": "What are the symptoms of diabetes?",
+  "history": [{"role": "user", "content": "previous message"}, {"role": "assistant", "content": "previous response"}]
 }
 ```
 
@@ -70,6 +69,7 @@ POST /voice-chat/
 Content-Type: multipart/form-data
 
 File: audio=@voice_message.wav
+Field: history=JSON_string_of_conversation_history
 ```
 
 #### Appointment Management
@@ -90,11 +90,39 @@ Content-Type: application/json
 
 - `OPENAI_API_KEY`: Required OpenAI API key
 
+## User Experience Features
+
+### FAQ Section
+- Quick access to common medical questions
+- Clicking on a question automatically sends it to the chat
+
+### Conversation Persistence
+- Last 20 messages are saved locally in the browser
+- Conversation history is restored when returning to the application
+- Clear history option to remove all saved messages
+
+### PDF Export
+- Export entire chat history as a PDF document
+- Includes both user and assistant messages with timestamps
+
+### Rate Limiting
+- Protects API from overuse with 15 requests per minute limit
+- Helps prevent abuse and controls costs
+
+### Character Counter
+- Shows remaining characters for input messages
+- Limit of 500 characters to optimize API costs
+- Visual warning when approaching the limit
+
 ## Testing
 Run the test suite with:
 ```bash
 pytest tests/
 ```
+
+## Deployment
+
+This application can be deployed on [Render.com](https://render.com) using the provided `render.yaml` configuration file.
 
 ## Disclaimer
 This application is not intended for actual medical diagnosis or treatment. Always consult a qualified healthcare professional for medical advice. The AI responses should not be considered as medical opinions.
