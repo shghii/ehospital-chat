@@ -14,6 +14,7 @@ def get_user_id():
     # In production, replace with proper authentication/session management.
     return "dummy_user_id"
 
+# This function is no longer used as we're redirecting to an external scheduling system
 def get_available_slots():
     # This function returns available appointment slots.
     # In a real scenario, this might query a calendar database.
@@ -25,44 +26,34 @@ def get_available_slots():
 
 @router.post("/", response_model=IntegratedChatResponse)
 async def chat_endpoint(request: ChatRequest, user_id: str = Depends(get_user_id)):
-    # Retrieve conversation history for the user, or start fresh.
-    conversation_history = user_conversations.get(user_id, [])
+    # Initialize conversation history
+    conversation_history = []
     
-    # Append the new user message.
-    conversation_history.append({"role": "user", "content": request.message})
+    # If history is provided in the request, use it
+    if request.history:
+        conversation_history = request.history
+    # Otherwise use server-side stored history if available
+    else:
+        conversation_history = user_conversations.get(user_id, [])
+    
+    # Append the new user message if not already in history
+    if not conversation_history or conversation_history[-1].get("content") != request.message:
+        conversation_history.append({"role": "user", "content": request.message})
+    
     user_msg = request.message.lower()
     
-    # Check if the user's message contains an available time slot (for appointment confirmation).
-    available_slots = get_available_slots()
-    selected_slot = next((slot for slot in available_slots if slot in user_msg), None)
-    
-    if selected_slot:
-        # Schedule the appointment (here using default user details for demo).
-        appointment = Appointment(
-            patient_name="User",  # Replace with actual user info from session/auth.
-            patient_email="user@example.com",
-            appointment_date=selected_slot.split()[0],
-            appointment_time=selected_slot.split()[1],
-            symptoms=""
-        )
-        appointments_db.append(appointment)
-        confirmation = (
-            f"Your appointment has been scheduled for {appointment.appointment_date} at "
-            f"{appointment.appointment_time}. A confirmation email will be sent to {appointment.patient_email}."
-        )
-        conversation_history.append({"role": "assistant", "content": confirmation})
-        user_conversations[user_id] = conversation_history
-        return IntegratedChatResponse(response=confirmation, appointment_options=[])
-    
-    # If the user message indicates a need for an appointment (e.g., contains keywords)
+    # Check if the user message indicates a need for an appointment (e.g., contains keywords)
     appointment_keywords = ["appointment", "book", "schedule", "see a doctor", "doctor"]
     if any(keyword in user_msg for keyword in appointment_keywords):
-        slots_text = "It looks like you might need to see a doctor. " \
-                     "Here are some available appointment slots: " + ", ".join(available_slots) + \
-                     ". Please reply with the exact slot you prefer (e.g., '2025-02-22 11:00')."
-        conversation_history.append({"role": "assistant", "content": slots_text})
+        scheduling_message = (
+            "If you'd like to schedule an appointment with one of our healthcare providers, "
+            "you can do so through our online scheduling system. "
+            "Please visit <a href='https://e-hospital.ca/schedule' target='_blank'>e-hospital.ca/schedule</a> "
+            "to view available appointments and book a time that works for you."
+        )
+        conversation_history.append({"role": "assistant", "content": scheduling_message})
         user_conversations[user_id] = conversation_history
-        return IntegratedChatResponse(response=slots_text, appointment_options=available_slots)
+        return IntegratedChatResponse(response=scheduling_message, appointment_options=[])
     
     # Otherwise, treat it as a normal conversation.
     try:

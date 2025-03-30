@@ -1,9 +1,10 @@
 from pydantic import BaseModel, EmailStr
-from typing import List, Optional
+from typing import List, Optional, Dict
 
 # Chat endpoint schemas
 class ChatRequest(BaseModel):
     message: str
+    history: Optional[List[Dict[str, str]]] = None
 
 class ChatResponse(BaseModel):
     response: str
@@ -28,6 +29,7 @@ class IntegratedChatRequest(BaseModel):
     # Optionally include user details for appointment booking:
     patient_name: Optional[str] = None
     patient_email: Optional[EmailStr] = None
+    history: Optional[List[Dict[str, str]]] = None
 
 class IntegratedChatResponse(BaseModel):
     response: str

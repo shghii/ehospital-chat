@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Support</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -38,6 +39,68 @@
             background: #2c3e50;
             color: white;
             border-radius: 10px 10px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .chat-header-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .export-pdf-btn {
+            background: transparent;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 1.2rem;
+            display: flex;
+            align-items: center;
+            transition: transform 0.2s;
+        }
+        
+        .export-pdf-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .faq-section {
+            background: #f8f9fa;
+            padding: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            max-height: 0;
+        }
+        
+        .faq-section.expanded {
+            max-height: 300px;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+            overflow-y: auto;
+        }
+        
+        .faq-toggle {
+            background: #ecf0f1;
+            border: none;
+            width: 100%;
+            padding: 0.5rem;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+        }
+        
+        .faq-item {
+            margin-bottom: 0.8rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+        
+        .faq-item:hover {
+            background: #e9ecef;
         }
 
         .chat-messages {
@@ -63,6 +126,15 @@
         .bot-message {
             background: #ecf0f1;
             color: #2c3e50;
+        }
+
+        .welcome-message {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 0.5rem;
+            text-align: center;
         }
 
         .voice-message {
@@ -150,6 +222,7 @@
             display: flex;
             gap: 0.5rem;
             align-items: center;
+            position: relative;
         }
 
         .voice-btn {
@@ -208,12 +281,31 @@
             display: block;
         }
 
-        .chat-input input {
+        .chat-input-wrapper {
             flex: 1;
+            position: relative;
+        }
+
+        .chat-input input {
+            width: 100%;
             padding: 0.5rem 1rem;
             border: 1px solid #ddd;
             border-radius: 2rem;
             outline: none;
+            padding-right: 60px; /* Space for character counter */
+        }
+
+        .character-counter {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 0.8rem;
+            color: #6c757d;
+        }
+
+        .counter-warning {
+            color: #e74c3c;
         }
 
         .chat-input button {
@@ -235,33 +327,135 @@
     <div class="chat-container">
         <div class="chat-header">
             <h2>Chat Support</h2>
-        </div>
-        <div class="chat-messages" id="chat-messages">
-            <div class="message bot-message">
-                Hello! How can I help you today?
+            <div class="chat-header-actions">
+                <button class="export-pdf-btn" id="export-pdf-btn" title="Export Chat History">
+                    <i class="fas fa-file-pdf"></i>
+                </button>
             </div>
         </div>
+        
+        <button class="faq-toggle" id="faq-toggle">
+            Frequently Asked Questions <i class="fas fa-chevron-down"></i>
+        </button>
+        
+        <div class="faq-section" id="faq-section">
+            <div class="faq-item" onclick="sendFaqQuestion(this)">How can I schedule an appointment?</div>
+            <div class="faq-item" onclick="sendFaqQuestion(this)">Is Bronchitis Contagious?</div>
+            <div class="faq-item" onclick="sendFaqQuestion(this)">What Is Lupus?</div>
+            <div class="faq-item" onclick="sendFaqQuestion(this)">How Much Water Should You Drink a Day?</div>
+            <div class="faq-item" onclick="sendFaqQuestion(this)">Is Strep Throat Contagious?</div>
+        </div>
+        
+        <div class="chat-messages" id="chat-messages">
+            <div class="welcome-message">
+                <h3>👋 Welcome to our Medical Assistant</h3>
+                <p>I'm here to help answer your health-related questions and guide you to the right resources. How can I assist you today?</p>
+            </div>
+        </div>
+        
         <div class="chat-input">
             <button class="voice-btn" id="voice-btn" title="Record Voice Message">
                 <i class="fas fa-microphone"></i>
                 <span class="recording-time" id="recording-time">0:00</span>
             </button>
-            <input type="text" id="message-input" placeholder="Type your message...">
+            <div class="chat-input-wrapper">
+                <input type="text" id="message-input" placeholder="Type your message..." maxlength="500">
+                <span class="character-counter" id="character-counter">500</span>
+            </div>
             <button onclick="sendMessage()">Send</button>
         </div>
     </div>
 
     <script>
         const messageInput = document.getElementById('message-input');
+        const characterCounter = document.getElementById('character-counter');
         const chatMessages = document.getElementById('chat-messages');
         const voiceBtn = document.getElementById('voice-btn');
         const recordingTime = document.getElementById('recording-time');
+        const exportPdfBtn = document.getElementById('export-pdf-btn');
+        const faqToggle = document.getElementById('faq-toggle');
+        const faqSection = document.getElementById('faq-section');
         let mediaRecorder;
         let audioChunks = [];
         let isRecording = false;
         let recordingStartTime;
         let recordingTimer;
         let currentAudio = null;
+        const MAX_CHARACTERS = 500;
+
+        // Initialize character counter
+        messageInput.addEventListener('input', updateCharacterCounter);
+        
+        function updateCharacterCounter() {
+            const remainingChars = MAX_CHARACTERS - messageInput.value.length;
+            characterCounter.textContent = remainingChars;
+            
+            if (remainingChars < 50) {
+                characterCounter.classList.add('counter-warning');
+            } else {
+                characterCounter.classList.remove('counter-warning');
+            }
+        }
+        
+        // FAQ toggle functionality
+        faqToggle.addEventListener('click', () => {
+            faqSection.classList.toggle('expanded');
+            const icon = faqToggle.querySelector('i');
+            if (faqSection.classList.contains('expanded')) {
+                icon.classList.remove('fa-chevron-down');
+                icon.classList.add('fa-chevron-up');
+            } else {
+                icon.classList.remove('fa-chevron-up');
+                icon.classList.add('fa-chevron-down');
+            }
+        });
+        
+        // Send FAQ question when clicked
+        function sendFaqQuestion(element) {
+            const question = element.textContent;
+            messageInput.value = question;
+            faqSection.classList.remove('expanded');
+            faqToggle.querySelector('i').classList.remove('fa-chevron-up');
+            faqToggle.querySelector('i').classList.add('fa-chevron-down');
+            sendMessage();
+        }
+        
+        // Export chat history as PDF
+        exportPdfBtn.addEventListener('click', exportChatAsPdf);
+        
+        function exportChatAsPdf() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            
+            // Add title
+            doc.setFontSize(16);
+            doc.text("Chat History", 20, 20);
+            doc.setFontSize(12);
+            
+            // Get all messages
+            const messages = chatMessages.querySelectorAll('.message:not(.welcome-message)');
+            let yPosition = 30;
+            
+            messages.forEach((msg, index) => {
+                // Determine if user or bot message
+                const isUser = msg.classList.contains('user-message');
+                const prefix = isUser ? "You: " : "Assistant: ";
+                const text = msg.textContent;
+                
+                // Handle page overflow
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                // Add the message text
+                doc.text(`${prefix}${text}`, 20, yPosition);
+                yPosition += 10;
+            });
+            
+            // Save the PDF
+            doc.save("chat-history.pdf");
+        }
 
         function showLoading() {
             const loadingDiv = document.createElement('div');
@@ -385,6 +579,21 @@
         async function sendVoiceMessage(audioBlob) {
             const formData = new FormData();
             formData.append('audio', audioBlob, 'voice-message.wav');
+            
+            // Get recent conversation history from localStorage
+            const chatHistory = JSON.parse(localStorage.getItem('medical_chat_history')) || [];
+            
+            // Get the last 5 messages (or fewer if not available)
+            const recentMessages = chatHistory.slice(-5);
+            
+            // Format the history for the API and add to formData as JSON
+            const formattedHistory = recentMessages.map(msg => ({
+                role: msg.type === 'user' ? 'user' : 'assistant',
+                content: msg.text
+            }));
+            
+            // Add history as a JSON string in the formData
+            formData.append('history', JSON.stringify(formattedHistory));
 
             try {
                 const response = await fetch('/voice-chat', {
@@ -401,9 +610,11 @@
                 // Remove the loading message
                 chatMessages.removeChild(chatMessages.lastChild);
                 
-                // Add the bot's response
-                if (data.response) {
+                // Add the bot's response with fallback for undefined/empty responses
+                if (data.response && data.response.trim() !== '') {
                     addMessage(data.response, 'bot');
+                } else {
+                    addMessage("I'm sorry, I couldn't process that properly. Could you please try again or rephrase your question?", 'bot');
                 }
 
             } catch (error) {
@@ -464,10 +675,89 @@
             const messageDiv = document.createElement('div');
             messageDiv.classList.add('message');
             messageDiv.classList.add(type === 'user' ? 'user-message' : 'bot-message');
-            messageDiv.textContent = text;
+            
+            // Use innerHTML instead of textContent to support HTML links
+            messageDiv.innerHTML = text;
+            
             chatMessages.appendChild(messageDiv);
             chatMessages.scrollTop = chatMessages.scrollHeight;
+            
+            // Save conversation to localStorage - simple approach
+            saveConversationToLocalStorage(text, type);
         }
+        
+        // Save conversation to localStorage
+        function saveConversationToLocalStorage(text, type) {
+            // Get existing conversation or initialize empty array
+            let conversation = JSON.parse(localStorage.getItem('medical_chat_history')) || [];
+            
+            // Add new message
+            conversation.push({
+                text: text,
+                type: type,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Keep only the last 20 messages to avoid localStorage limits and keep context brief
+            if (conversation.length > 20) {
+                conversation = conversation.slice(conversation.length - 20);
+            }
+            
+            // Save back to localStorage
+            localStorage.setItem('medical_chat_history', JSON.stringify(conversation));
+        }
+
+        // Load conversation from localStorage on page load
+        function loadConversationFromLocalStorage() {
+            const conversation = JSON.parse(localStorage.getItem('medical_chat_history')) || [];
+            
+            // Only load if there are messages
+            if (conversation.length > 0) {
+                // Clear default welcome message
+                chatMessages.innerHTML = '';
+                
+                // Add each message to the chat
+                conversation.forEach(message => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.classList.add('message');
+                    messageDiv.classList.add(message.type === 'user' ? 'user-message' : 'bot-message');
+                    messageDiv.innerHTML = message.text;
+                    chatMessages.appendChild(messageDiv);
+                });
+                
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+                
+                // Add a notification that we've loaded previous conversation
+                const notificationDiv = document.createElement('div');
+                notificationDiv.classList.add('message', 'bot-message');
+                notificationDiv.style.backgroundColor = '#d1ecf1';
+                notificationDiv.style.color = '#0c5460';
+                notificationDiv.innerHTML = 'Previous conversation loaded. <button onclick="clearChatHistory()" style="background: #0c5460; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer;">Clear History</button>';
+                chatMessages.appendChild(notificationDiv);
+            }
+        }
+
+        // Clear chat history
+        function clearChatHistory() {
+            localStorage.removeItem('medical_chat_history');
+            
+            // Reload the page to start fresh
+            window.location.reload();
+        }
+
+        // Initialize: load chat history and set up event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            loadConversationFromLocalStorage();
+            
+            // Add clear history option to the header
+            const chatHeaderActions = document.querySelector('.chat-header-actions');
+            const clearHistoryBtn = document.createElement('button');
+            clearHistoryBtn.className = 'export-pdf-btn';
+            clearHistoryBtn.title = 'Clear Chat History';
+            clearHistoryBtn.innerHTML = '<i class="fas fa-trash-alt"></i>';
+            clearHistoryBtn.addEventListener('click', clearChatHistory);
+            chatHeaderActions.appendChild(clearHistoryBtn);
+        });
 
         // Allow sending message with Enter key
         messageInput.addEventListener('keypress', (e) => {
@@ -479,7 +769,7 @@
         // Initialize voice recording setup
         setupVoiceRecording();
 
-        // Add this function before the event listener for Enter key
+        // Send message with context from previous conversation
         async function sendMessage() {
             const message = messageInput.value.trim();
             if (!message) return;
@@ -487,17 +777,34 @@
             // Add user message to chat
             addMessage(message, 'user');
             messageInput.value = '';
+            updateCharacterCounter();
 
             // Show loading indicator
             showLoading();
 
             try {
+                // Get recent conversation history from localStorage
+                const chatHistory = JSON.parse(localStorage.getItem('medical_chat_history')) || [];
+                
+                // Get the last 5 messages (or fewer if not available)
+                const recentMessages = chatHistory.slice(-5);
+                
+                // Format the history for the API
+                const formattedHistory = recentMessages.map(msg => ({
+                    role: msg.type === 'user' ? 'user' : 'assistant',
+                    content: msg.text
+                }));
+                
+                // Send the current message with context
                 const response = await fetch('/chat', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ message: message })
+                    body: JSON.stringify({ 
+                        message: message,
+                        history: formattedHistory
+                    })
                 });
 
                 const data = await response.json();
@@ -505,12 +812,16 @@
                 // Remove loading indicator
                 removeLoading();
                 
-                // Add bot response to chat
-                addMessage(data.response, 'bot');
+                // Add bot response to chat with fallback for undefined/empty responses
+                if (data.response && data.response.trim() !== '') {
+                    addMessage(data.response, 'bot');
+                } else {
+                    addMessage("I apologize, but I couldn't generate a proper response. Please try asking your question again or in a different way.", 'bot');
+                }
             } catch (error) {
                 console.error('Error:', error);
                 removeLoading();
-                addMessage('Sorry, there was an error processing your message.', 'bot');
+                addMessage('Sorry, there was an error processing your message. Please check your connection and try again.', 'bot');
             }
         }
     </script>
